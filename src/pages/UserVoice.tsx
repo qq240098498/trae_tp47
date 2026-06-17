@@ -17,14 +17,17 @@ import {
   Link as LinkIcon,
   Quote,
   SlidersHorizontal,
+  Plus,
+  Clock,
 } from 'lucide-react';
 import {
   FEEDBACK_CHANNEL_LABELS,
   FEEDBACK_CHANNEL_COLORS,
   SENTIMENT_LABELS,
+  SENTIMENT_COLORS,
 } from '@/types';
 import { cn } from '@/lib/utils';
-import type { FeedbackChannel, UserVoiceDemand } from '@/types';
+import type { FeedbackChannel, UserVoiceDemand, SentimentType } from '@/types';
 import { useNavigate } from 'react-router-dom';
 
 type SortBy = 'heat' | 'mentions' | 'negative' | 'trend';
@@ -55,6 +58,18 @@ const CHANNEL_OPTIONS: Array<{ value: FeedbackChannel; label: string; icon: type
   { value: 'user_interview', label: FEEDBACK_CHANNEL_LABELS.user_interview, icon: Quote },
 ];
 
+const SENTIMENT_DOT_COLORS: Record<SentimentType, string> = {
+  positive: 'bg-green-500',
+  neutral: 'bg-gray-400',
+  negative: 'bg-red-500',
+};
+
+const SENTIMENT_BG_STYLES: Record<SentimentType, string> = {
+  positive: 'border-green-200 bg-green-50',
+  neutral: 'border-gray-200 bg-gray-50',
+  negative: 'border-red-200 bg-red-50',
+};
+
 export default function UserVoice() {
   const navigate = useNavigate();
   const {
@@ -67,13 +82,24 @@ export default function UserVoice() {
     userVoiceSortBy,
     setUserVoiceSortBy,
     getRequirementById,
+    getUserFeedbacks,
+    addUserFeedback,
   } = useRequirementStore();
 
   const [expandedDemandId, setExpandedDemandId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [showFeedbackList, setShowFeedbackList] = useState(false);
+  const [formData, setFormData] = useState({
+    channel: 'customer_service' as FeedbackChannel,
+    content: '',
+    userId: '',
+  });
+  const [formErrors, setFormErrors] = useState<{ content?: string }>({});
 
   const statistics = useMemo(() => getUserVoiceStatistics(), [getUserVoiceStatistics]);
   const demands = useMemo(() => getUserVoiceDemands(), [getUserVoiceDemands]);
+  const feedbacks = useMemo(() => getUserFeedbacks(), [getUserFeedbacks]);
 
   const negativeRate = (demand: UserVoiceDemand) => {
     const total = demand.sentimentBreakdown.positive + demand.sentimentBreakdown.neutral + demand.sentimentBreakdown.negative;
@@ -107,6 +133,57 @@ export default function UserVoice() {
 
   const channelTotal = Object.values(statistics.channelsDistribution).reduce((a, b) => a + b, 0);
 
+  const handleSubmitFeedback = () => {
+    if (!formData.content.trim()) {
+      setFormErrors({ content: '请输入反馈内容' });
+      return;
+    }
+    const content = formData.content.trim();
+    const posKeywords = ['好', '棒', '赞', '喜欢', '不错', '方便', '满意', '快', '优秀', '感谢', '期待', '终于', '舒服', 'great', 'good', 'love', 'nice', 'awesome'];
+    const negKeywords = ['慢', '卡', '差', '烂', '难用', '不方便', '麻烦', '崩溃', '闪退', '无法', '缺失', '太慢', '着急', '不够', '看不清', 'bug', 'bad', 'terrible', 'hate', '问题', '错误', '失败', '不专业'];
+    let posScore = 0;
+    let negScore = 0;
+    const lower = content.toLowerCase();
+    for (const kw of posKeywords) { if (lower.includes(kw)) posScore++; }
+    for (const kw of negKeywords) { if (lower.includes(kw)) negScore++; }
+    let sentiment: SentimentType = 'neutral';
+    let sentimentScore = 0;
+    if (posScore > negScore) { sentiment = 'positive'; sentimentScore = Math.min(posScore / (posScore + negScore + 1), 1); }
+    else if (negScore > posScore) { sentiment = 'negative'; sentimentScore = -Math.min(negScore / (posScore + negScore + 1), 1); }
+
+    const stopwords = new Set(['的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '他', '她', '它', '吗', '吧', '啊', '呢']);
+    const keywords = content
+      .replace(/[，。！？、；：""''（）【】《》\[\]{},.!?;:'"()]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 2 && !stopwords.has(w))
+      .slice(0, 5);
+
+    addUserFeedback({
+      channel: formData.channel,
+      content,
+      sentiment,
+      sentimentScore,
+      keywords,
+      userId: formData.userId.trim() || undefined,
+    });
+
+    setFormData({ channel: 'customer_service', content: '', userId: '' });
+    setFormErrors({});
+    setShowFeedbackForm(false);
+  };
+
+  const formatTime = (ts: string) => {
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return '刚刚';
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays} 天前`;
+    return d.toLocaleDateString('zh-CN');
+  };
+
   return (
     <div className="p-8">
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -116,7 +193,106 @@ export default function UserVoice() {
             系统从多渠道用户反馈中自动提炼共性诉求，量化出现频次和情绪强度，为优先级决策提供数据支撑
           </p>
         </div>
+        <button
+          onClick={() => setShowFeedbackForm(true)}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" />
+          录入反馈
+        </button>
       </div>
+
+      {showFeedbackForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowFeedbackForm(false)}>
+          <div
+            className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">录入用户反馈</h2>
+              <button onClick={() => setShowFeedbackForm(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">反馈渠道</label>
+                <div className="flex flex-wrap gap-2">
+                  {CHANNEL_OPTIONS.map((opt) => {
+                    const selected = formData.channel === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setFormData({ ...formData, channel: opt.value })}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                          selected
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        )}
+                      >
+                        <opt.icon className="h-4 w-4" />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  反馈内容 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={formData.content}
+                  onChange={(e) => {
+                    setFormData({ ...formData, content: e.target.value });
+                    if (formErrors.content) setFormErrors({});
+                  }}
+                  placeholder="请输入用户反馈原文，系统将自动分析情绪和提取关键词..."
+                  rows={4}
+                  className={cn(
+                    'w-full resize-none rounded-lg border px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2',
+                    formErrors.content
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-100'
+                  )}
+                />
+                {formErrors.content && (
+                  <p className="mt-1 text-xs text-red-600">{formErrors.content}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">用户标识（选填）</label>
+                <input
+                  type="text"
+                  value={formData.userId}
+                  onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                  placeholder="用户ID、手机号或昵称"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowFeedbackForm(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSubmitFeedback}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                提交反馈
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -124,8 +300,8 @@ export default function UserVoice() {
             <MessageSquare className="h-3.5 w-3.5" />
             反馈总量
           </div>
-          <div className="text-2xl font-bold text-gray-900">{statistics.totalFeedbacks.toLocaleString()}</div>
-          <div className="mt-1 text-xs text-gray-400">近30天收集</div>
+          <div className="text-2xl font-bold text-gray-900">{feedbacks.length}</div>
+          <div className="mt-1 text-xs text-gray-400">累计录入条目</div>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -277,6 +453,67 @@ export default function UserVoice() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+            <MessageSquare className="h-5 w-5 text-blue-500" />
+            最近录入反馈
+          </h3>
+          <button
+            onClick={() => setShowFeedbackList(!showFeedbackList)}
+            className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+          >
+            {showFeedbackList ? '收起' : '查看全部'}
+            {showFeedbackList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </div>
+        <div className="space-y-3">
+          {(showFeedbackList ? feedbacks : feedbacks.slice(0, 5)).map((fb) => {
+            const channelOpt = CHANNEL_OPTIONS.find((c) => c.value === fb.channel);
+            return (
+              <div
+                key={fb.id}
+                className={cn('rounded-lg border p-4 transition-colors', SENTIMENT_BG_STYLES[fb.sentiment])}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('h-2 w-2 rounded-full', SENTIMENT_DOT_COLORS[fb.sentiment])} />
+                    <span className={cn('rounded px-2 py-0.5 text-[10px] font-medium', FEEDBACK_CHANNEL_COLORS[fb.channel])}>
+                      {channelOpt?.label}
+                    </span>
+                    <span className={cn('rounded px-2 py-0.5 text-[10px] font-medium', SENTIMENT_COLORS[fb.sentiment])}>
+                      {SENTIMENT_LABELS[fb.sentiment]}
+                    </span>
+                    {fb.userId && (
+                      <span className="text-[10px] text-gray-400">{fb.userId}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <Clock className="h-3 w-3" />
+                    {formatTime(fb.timestamp)}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700">{fb.content}</p>
+                {fb.keywords.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {fb.keywords.map((kw) => (
+                      <span key={kw} className="rounded bg-white/60 px-1.5 py-0.5 text-[10px] text-gray-500">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {feedbacks.length === 0 && (
+            <div className="py-8 text-center text-sm text-gray-400">
+              暂无反馈数据，点击右上角「录入反馈」开始录入
+            </div>
+          )}
         </div>
       </div>
 

@@ -11,8 +11,10 @@ import type {
   UserVoiceDemand,
   UserVoiceStatistics,
   FeedbackChannel,
+  UserFeedbackItem,
+  SentimentType,
 } from '@/types';
-import { mockRequirements, mockDependencies, mockUserVoiceDemands, mockUserVoiceStatistics } from '@/data/mockData';
+import { mockRequirements, mockDependencies, mockUserVoiceDemands, mockUserVoiceStatistics, mockUserFeedbacks } from '@/data/mockData';
 import { calculateRequirementSimilarity, assessImpact, type ImpactAssessmentResult } from '@/lib/utils';
 
 interface RequirementStore {
@@ -79,6 +81,10 @@ interface RequirementStore {
   getUserVoiceDemands: () => UserVoiceDemand[];
   getUserVoiceDemandById: (id: string) => UserVoiceDemand | undefined;
   getUserVoiceStatistics: () => UserVoiceStatistics;
+
+  userFeedbacks: UserFeedbackItem[];
+  addUserFeedback: (feedback: Omit<UserFeedbackItem, 'id' | 'timestamp'>) => void;
+  getUserFeedbacks: () => UserFeedbackItem[];
 }
 
 const generateId = () => {
@@ -88,6 +94,40 @@ const generateId = () => {
 const generateCriterionId = () => {
   return 'AC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 };
+
+const generateFeedbackId = () => {
+  return 'FB-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+};
+
+const SENTIMENT_KEYWORDS: Record<SentimentType, string[]> = {
+  positive: ['好', '棒', '赞', '喜欢', '不错', '方便', '满意', '快', '优秀', '感谢', '期待', '终于', '舒服', 'great', 'good', 'love', 'nice', 'awesome'],
+  negative: ['慢', '卡', '差', '烂', '难用', '不方便', '麻烦', '崩溃', '闪退', '无法', '缺失', '缺失', '太慢', '着急', '不够', '看不清', 'bug', 'bad', 'terrible', 'hate', '问题', '错误', '失败', '不专业'],
+  neutral: [],
+};
+
+function analyzeSentiment(content: string): { sentiment: SentimentType; score: number } {
+  let posScore = 0;
+  let negScore = 0;
+  const lower = content.toLowerCase();
+  for (const kw of SENTIMENT_KEYWORDS.positive) {
+    if (lower.includes(kw)) posScore++;
+  }
+  for (const kw of SENTIMENT_KEYWORDS.negative) {
+    if (lower.includes(kw)) negScore++;
+  }
+  if (posScore > negScore) return { sentiment: 'positive', score: Math.min(posScore / (posScore + negScore + 1), 1) };
+  if (negScore > posScore) return { sentiment: 'negative', score: -Math.min(negScore / (posScore + negScore + 1), 1) };
+  return { sentiment: 'neutral', score: 0 };
+}
+
+function extractKeywords(content: string): string[] {
+  const stopwords = new Set(['的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '他', '她', '它', '吗', '吧', '啊', '呢', '把', '被', '让', '给', '对', '能', '还', '多', '什么', '那', '里', '来', '下', '用', '过', '时候', '可以', '希望', '需要', '目前', '现在', '功能', '系统', '这个', '那个', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can', 'need', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'and', 'but', 'or', 'not', 'no', 'if', 'it', 'its']);
+  return content
+    .replace(/[，。！？、；：""''（）【】《》\[\]{},.!?;:'"()]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !stopwords.has(w.toLowerCase()))
+    .slice(0, 5);
+}
 
 export const useRequirementStore = create<RequirementStore>((set, get) => ({
   requirements: mockRequirements,
@@ -103,6 +143,8 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   userVoiceSearchQuery: '',
   userVoiceFilterChannels: [],
   userVoiceSortBy: 'heat',
+
+  userFeedbacks: mockUserFeedbacks,
 
   setSelectedRequirementId: (id) => set({ selectedRequirementId: id }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -494,4 +536,18 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   },
   getUserVoiceDemandById: (id) => get().userVoiceDemands.find((d) => d.id === id),
   getUserVoiceStatistics: () => get().userVoiceStatistics,
+
+  addUserFeedback: (feedback) => {
+    const newFeedback: UserFeedbackItem = {
+      ...feedback,
+      id: generateFeedbackId(),
+      timestamp: new Date().toISOString(),
+    };
+    set((state) => ({ userFeedbacks: [newFeedback, ...state.userFeedbacks] }));
+  },
+  getUserFeedbacks: () => {
+    return [...get().userFeedbacks].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  },
 }));
