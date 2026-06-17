@@ -117,14 +117,27 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   },
 
   addRequirement: (requirement) => {
+    const { userValue, implementationCost, strategicAlignment, urgency } = requirement.score;
     const newReq: Requirement = {
       ...requirement,
       id: generateId(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      acceptanceCriteria: requirement.acceptanceCriteria.map((ac) => ({
+        ...ac,
+        id: generateCriterionId(),
+      })),
       score: {
-        ...requirement.score,
-        finalScore: get().calculatePriorityScore(requirement.score),
+        userValue,
+        implementationCost,
+        strategicAlignment,
+        urgency,
+        finalScore: get().calculatePriorityScore({
+          userValue,
+          implementationCost,
+          strategicAlignment,
+          urgency,
+        }),
       },
       dependents: [],
       conflicts: [],
