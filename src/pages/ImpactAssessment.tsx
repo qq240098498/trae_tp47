@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useRequirementStore } from '@/store/useRequirementStore';
 import {
   AlertTriangle,
@@ -65,7 +64,6 @@ type ViewMode = 'overview' | 'detail';
 type DetailMode = 'select' | 'manual';
 
 export default function ImpactAssessment() {
-  const navigate = useNavigate();
   const { requirements, getImpactAssessment, getImpactAssessmentFromText } = useRequirementStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
@@ -74,11 +72,12 @@ export default function ImpactAssessment() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
-  const [filterComplexity, setFilterComplexity] = useState<ImpactComplexity | 'all'>('all');
-  const [filterRisk, setFilterRisk] = useState<ImpactComplexity | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<RequirementStatus | 'all'>('all');
+  const [filterComplexity, setFilterComplexity] = useState<ImpactComplexity[]>([]);
+  const [filterRisk, setFilterRisk] = useState<ImpactComplexity[]>([]);
+  const [filterStatus, setFilterStatus] = useState<RequirementStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(true);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const [showAllModules, setShowAllModules] = useState(false);
   const [showAllInterfaces, setShowAllInterfaces] = useState(false);
@@ -116,9 +115,9 @@ export default function ImpactAssessment() {
 
   const filteredAssessments = useMemo(() => {
     return allAssessments.filter(({ requirement, assessment }) => {
-      if (filterComplexity !== 'all' && assessment.overallComplexity !== filterComplexity) return false;
-      if (filterRisk !== 'all' && assessment.riskLevel !== filterRisk) return false;
-      if (filterStatus !== 'all' && requirement.status !== filterStatus) return false;
+      if (filterComplexity.length > 0 && !filterComplexity.includes(assessment.overallComplexity)) return false;
+      if (filterRisk.length > 0 && !filterRisk.includes(assessment.riskLevel)) return false;
+      if (filterStatus.length > 0 && !filterStatus.includes(requirement.status)) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         if (
@@ -172,16 +171,14 @@ export default function ImpactAssessment() {
 
   const selectedReq = requirements.find((r) => r.id === selectedReqId);
 
-  const complexityOptions: Array<{ value: ImpactComplexity | 'all'; label: string }> = [
-    { value: 'all', label: '全部复杂度' },
+  const complexityOptions: Array<{ value: ImpactComplexity; label: string }> = [
     { value: 'critical', label: '极高' },
     { value: 'high', label: '高' },
     { value: 'medium', label: '中' },
     { value: 'low', label: '低' },
   ];
 
-  const statusOptions: Array<{ value: RequirementStatus | 'all'; label: string }> = [
-    { value: 'all', label: '全部状态' },
+  const statusOptions: Array<{ value: RequirementStatus; label: string }> = [
     { value: 'draft', label: STATUS_LABELS.draft },
     { value: 'analysis', label: STATUS_LABELS.analysis },
     { value: 'planning', label: STATUS_LABELS.planning },
@@ -197,17 +194,30 @@ export default function ImpactAssessment() {
   };
 
   const clearFilters = () => {
-    setFilterComplexity('all');
-    setFilterRisk('all');
-    setFilterStatus('all');
+    setFilterComplexity([]);
+    setFilterRisk([]);
+    setFilterStatus([]);
     setSearchQuery('');
   };
 
   const hasActiveFilters =
-    filterComplexity !== 'all' ||
-    filterRisk !== 'all' ||
-    filterStatus !== 'all' ||
+    filterComplexity.length > 0 ||
+    filterRisk.length > 0 ||
+    filterStatus.length > 0 ||
     searchQuery !== '';
+
+  const toggleArrayFilter = <T,>(arr: T[], item: T): T[] => {
+    return arr.includes(item) ? arr.filter((v) => v !== item) : [...arr, item];
+  };
+
+  const getDropdownLabel = (selected: string[], allOptions: Array<{ value: string; label: string }>, placeholder: string) => {
+    if (selected.length === 0) return placeholder;
+    if (selected.length === 1) {
+      const opt = allOptions.find((o) => o.value === selected[0]);
+      return opt ? opt.label : placeholder;
+    }
+    return `已选 ${selected.length} 项`;
+  };
 
   return (
     <div className="p-8">
@@ -252,10 +262,10 @@ export default function ImpactAssessment() {
             {(['critical', 'high', 'medium', 'low'] as const).map((level) => (
               <button
                 key={level}
-                onClick={() => setFilterComplexity(filterComplexity === level ? 'all' : level)}
+                onClick={() => setFilterComplexity(toggleArrayFilter(filterComplexity, level))}
                 className={cn(
                   'rounded-xl border p-4 text-left shadow-sm transition-all',
-                  filterComplexity === level
+                  filterComplexity.includes(level)
                     ? 'border-blue-500 ring-2 ring-blue-200'
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 )}
@@ -310,10 +320,7 @@ export default function ImpactAssessment() {
                 筛选
                 {hasActiveFilters && (
                   <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] text-white">
-                    {(filterComplexity !== 'all' ? 1 : 0) +
-                      (filterRisk !== 'all' ? 1 : 0) +
-                      (filterStatus !== 'all' ? 1 : 0) +
-                      (searchQuery ? 1 : 0)}
+                    {filterComplexity.length + filterRisk.length + filterStatus.length + (searchQuery ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -330,71 +337,130 @@ export default function ImpactAssessment() {
             </div>
 
             {showFilters && (
-              <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-4">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">整体复杂度</label>
-                  <div className="flex gap-1">
-                    {complexityOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setFilterComplexity(opt.value)}
+              <div className="mt-4 flex flex-wrap items-start gap-3 border-t border-gray-100 pt-4">
+                <MultiSelectDropdown
+                  id="complexity"
+                  label={getDropdownLabel(filterComplexity, complexityOptions as Array<{ value: string; label: string }>, '整体复杂度')}
+                  openDropdown={openDropdown}
+                  setOpenDropdown={setOpenDropdown}
+                  hasSelection={filterComplexity.length > 0}
+                >
+                  {complexityOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFilterComplexity(toggleArrayFilter(filterComplexity, opt.value))}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100"
+                    >
+                      <span
                         className={cn(
-                          'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                          filterComplexity === opt.value
-                            ? opt.value === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : cn(
-                                  'border',
-                                  IMPACT_COMPLEXITY_COLORS[opt.value as ImpactComplexity]
-                                )
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border',
+                          filterComplexity.includes(opt.value)
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-300 bg-white'
                         )}
                       >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {filterComplexity.includes(opt.value) && (
+                          <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className={cn('h-2 w-2 rounded-full', COMPLEXITY_DOT_COLORS[opt.value])} />
+                      <span className="text-gray-700">{opt.label}</span>
+                      <span className="ml-auto text-xs text-gray-400">{statistics.counts[opt.value]}</span>
+                    </button>
+                  ))}
+                  {filterComplexity.length > 0 && (
+                    <button
+                      onClick={() => setFilterComplexity([])}
+                      className="w-full border-t border-gray-100 px-3 py-2 text-center text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      清除选择
+                    </button>
+                  )}
+                </MultiSelectDropdown>
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">风险等级</label>
-                  <div className="flex gap-1">
-                    {complexityOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setFilterRisk(opt.value)}
+                <MultiSelectDropdown
+                  id="risk"
+                  label={getDropdownLabel(filterRisk, complexityOptions as Array<{ value: string; label: string }>, '风险等级')}
+                  openDropdown={openDropdown}
+                  setOpenDropdown={setOpenDropdown}
+                  hasSelection={filterRisk.length > 0}
+                >
+                  {complexityOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFilterRisk(toggleArrayFilter(filterRisk, opt.value))}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100"
+                    >
+                      <span
                         className={cn(
-                          'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                          filterRisk === opt.value
-                            ? opt.value === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : cn(
-                                  'border',
-                                  IMPACT_COMPLEXITY_COLORS[opt.value as ImpactComplexity]
-                                )
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border',
+                          filterRisk.includes(opt.value)
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-300 bg-white'
                         )}
                       >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {filterRisk.includes(opt.value) && (
+                          <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className={cn('h-2 w-2 rounded-full', COMPLEXITY_DOT_COLORS[opt.value])} />
+                      <span className="text-gray-700">{opt.label}</span>
+                      <span className="ml-auto text-xs text-gray-400">{statistics.riskCounts[opt.value]}</span>
+                    </button>
+                  ))}
+                  {filterRisk.length > 0 && (
+                    <button
+                      onClick={() => setFilterRisk([])}
+                      className="w-full border-t border-gray-100 px-3 py-2 text-center text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      清除选择
+                    </button>
+                  )}
+                </MultiSelectDropdown>
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">需求状态</label>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value as RequirementStatus | 'all')}
-                    className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  >
-                    {statusOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MultiSelectDropdown
+                  id="status"
+                  label={getDropdownLabel(filterStatus, statusOptions as Array<{ value: string; label: string }>, '需求状态')}
+                  openDropdown={openDropdown}
+                  setOpenDropdown={setOpenDropdown}
+                  hasSelection={filterStatus.length > 0}
+                >
+                  {statusOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFilterStatus(toggleArrayFilter(filterStatus, opt.value))}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100"
+                    >
+                      <span
+                        className={cn(
+                          'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border',
+                          filterStatus.includes(opt.value)
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-300 bg-white'
+                        )}
+                      >
+                        {filterStatus.includes(opt.value) && (
+                          <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="text-gray-700">{opt.label}</span>
+                    </button>
+                  ))}
+                  {filterStatus.length > 0 && (
+                    <button
+                      onClick={() => setFilterStatus([])}
+                      className="w-full border-t border-gray-100 px-3 py-2 text-center text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      清除选择
+                    </button>
+                  )}
+                </MultiSelectDropdown>
               </div>
             )}
           </div>
@@ -1119,5 +1185,55 @@ function Users(props: { className?: string }) {
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
+  );
+}
+
+function MultiSelectDropdown({
+  id,
+  label,
+  openDropdown,
+  setOpenDropdown,
+  hasSelection,
+  children,
+}: {
+  id: string;
+  label: string;
+  openDropdown: string | null;
+  setOpenDropdown: (v: string | null) => void;
+  hasSelection: boolean;
+  children: React.ReactNode;
+}) {
+  const isOpen = openDropdown === id;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpenDropdown(isOpen ? null : id)}
+        className={cn(
+          'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+          isOpen
+            ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-100'
+            : hasSelection
+              ? 'border-blue-300 bg-blue-50 text-blue-700'
+              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+        )}
+      >
+        <span>{label}</span>
+        <ChevronDown
+          className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')}
+        />
+      </button>
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpenDropdown(null)}
+          />
+          <div className="absolute left-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+            {children}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
