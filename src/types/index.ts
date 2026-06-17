@@ -136,6 +136,7 @@ export interface DuplicateMatch {
   requirement: Requirement;
   similarity: number;
   matchedFields: string[];
+  matchedKeywords: string[];
 }
 
 export interface DuplicateCheckResult {

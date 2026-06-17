@@ -93,18 +93,19 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
       if (excludeId && req.id === excludeId) continue;
       if (req.status === 'archived') continue;
 
-      const { similarity, matchedFields } = calculateRequirementSimilarity(
+      const { similarity, matchedFields, matchedKeywords } = calculateRequirementSimilarity(
         title,
         description,
         req.title,
         req.description
       );
 
-      if (similarity >= duplicateCheckThreshold && matchedFields.length > 0) {
+      if (similarity >= duplicateCheckThreshold && (matchedFields.length > 0 || matchedKeywords.length >= 2)) {
         matches.push({
           requirement: req,
           similarity,
           matchedFields,
+          matchedKeywords,
         });
       }
     }

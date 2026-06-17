@@ -596,7 +596,7 @@ function CreateRequirementModal({ onClose, onSubmit, checkForDuplicates, navigat
                               className="rounded-lg border border-amber-200 bg-white overflow-hidden"
                             >
                               <div className="bg-amber-100 px-4 py-2 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-xs font-semibold text-amber-800">
                                     疑似重复 #{index + 1}
                                   </span>
@@ -611,6 +611,23 @@ function CreateRequirementModal({ onClose, onSubmit, checkForDuplicates, navigat
                                   {match.matchedFields.includes('description') && (
                                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
                                       描述匹配
+                                    </span>
+                                  )}
+                                  {match.matchedFields.includes('keywords') && (
+                                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
+                                      语义匹配
+                                    </span>
+                                  )}
+                                  {match.matchedKeywords.length > 0 && (
+                                    <span className="inline-flex flex-wrap items-center gap-1">
+                                      {match.matchedKeywords.map(kw => (
+                                        <span
+                                          key={kw}
+                                          className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] text-indigo-700"
+                                        >
+                                          {kw}
+                                        </span>
+                                      ))}
                                     </span>
                                   )}
                                 </div>
