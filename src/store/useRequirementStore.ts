@@ -10,7 +10,7 @@ import type {
   DuplicateCheckResult,
 } from '@/types';
 import { mockRequirements, mockDependencies } from '@/data/mockData';
-import { calculateRequirementSimilarity } from '@/lib/utils';
+import { calculateRequirementSimilarity, assessImpact, type ImpactAssessmentResult } from '@/lib/utils';
 
 interface RequirementStore {
   requirements: Requirement[];
@@ -60,6 +60,9 @@ interface RequirementStore {
     hasConflicts: number;
     hasDependencies: number;
   };
+
+  getImpactAssessment: (requirementId: string) => ImpactAssessmentResult | null;
+  getImpactAssessmentFromText: (title: string, description: string) => ImpactAssessmentResult;
 }
 
 const generateId = () => {
@@ -410,5 +413,15 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
       hasConflicts,
       hasDependencies,
     };
+  },
+
+  getImpactAssessment: (requirementId) => {
+    const req = get().getRequirementById(requirementId);
+    if (!req) return null;
+    return assessImpact(req.title, req.description);
+  },
+
+  getImpactAssessmentFromText: (title, description) => {
+    return assessImpact(title, description);
   },
 }));

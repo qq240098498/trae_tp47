@@ -487,5 +487,572 @@ export function calculateRequirementSimilarity(
     similarity: adjustedSimilarity,
     matchedFields,
     matchedKeywords,
+  };
+}
+
+interface ModuleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  keywords: string[];
+  defaultComplexity: 'low' | 'medium' | 'high' | 'critical';
+  baseDays: number;
+}
+
+const SYSTEM_MODULES: ModuleDefinition[] = [
+  {
+    id: 'auth',
+    name: '用户认证模块',
+    description: '用户登录、注册、权限验证等认证相关功能',
+    keywords: ['登录', '注册', '认证', '权限', '验证码', '第三方登录', '微信', 'QQ', '账号', '密码', '安全', '加密', '验证', 'token', 'session'],
+    defaultComplexity: 'high',
+    baseDays: 3,
+  },
+  {
+    id: 'user',
+    name: '用户管理模块',
+    description: '用户信息管理、个人中心、用户资料等',
+    keywords: ['用户', '个人中心', '资料', '会员', '客户', '账号', '头像', '昵称', '用户信息'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'order',
+    name: '订单管理模块',
+    description: '订单创建、查询、修改、取消等订单相关功能',
+    keywords: ['订单', '下单', '支付', '退款', '购物车', '结算', '交易', '销售单'],
+    defaultComplexity: 'high',
+    baseDays: 4,
+  },
+  {
+    id: 'payment',
+    name: '支付模块',
+    description: '支付处理、退款、对账等支付相关功能',
+    keywords: ['支付', '付款', '退款', '结算', '缴费', '充值', '下单支付', '微信支付', '支付宝'],
+    defaultComplexity: 'critical',
+    baseDays: 5,
+  },
+  {
+    id: 'report',
+    name: '报表统计模块',
+    description: '数据报表、统计分析、数据可视化等',
+    keywords: ['报表', '统计', '图表', '数据', '可视化', '分析', '汇总', '趋势', '饼图', '柱状图', '折线图'],
+    defaultComplexity: 'medium',
+    baseDays: 3,
+  },
+  {
+    id: 'export',
+    name: '数据导出模块',
+    description: '数据导出、文件下载、格式转换等',
+    keywords: ['导出', '下载', 'Excel', 'PDF', '表格', '生成', '提取', '保存', 'xlsx', 'xls', 'csv'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'import',
+    name: '数据导入模块',
+    description: '数据导入、批量录入、文件上传等',
+    keywords: ['导入', '上传', '录入', '批量导入', 'Excel导入', '文件上传'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'notification',
+    name: '通知消息模块',
+    description: '站内信、消息推送、通知提醒等',
+    keywords: ['通知', '提醒', '消息', '推送', '告警', '提示', '站内信', '邮件', '短信'],
+    defaultComplexity: 'low',
+    baseDays: 1,
+  },
+  {
+    id: 'search',
+    name: '搜索模块',
+    description: '全文搜索、筛选、查询等功能',
+    keywords: ['搜索', '查询', '查找', '检索', '筛选', '过滤'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'collaboration',
+    name: '协作编辑模块',
+    description: '多人实时协作、文档协同编辑等',
+    keywords: ['协作', '实时', '编辑', '多人', '同步', '协同'],
+    defaultComplexity: 'critical',
+    baseDays: 8,
+  },
+  {
+    id: 'ui_theme',
+    name: 'UI主题模块',
+    description: '主题切换、深色模式、样式系统等',
+    keywords: ['主题', '深色模式', '浅色模式', 'UI', '样式', '皮肤', '高对比度', '无障碍', '可访问性'],
+    defaultComplexity: 'high',
+    baseDays: 5,
+  },
+  {
+    id: 'api_gateway',
+    name: 'API网关模块',
+    description: 'API接口管理、限流、鉴权等',
+    keywords: ['API', '接口', '限流', '网关', '鉴权', '接口文档', 'REST', 'GraphQL'],
+    defaultComplexity: 'high',
+    baseDays: 4,
+  },
+  {
+    id: 'log_audit',
+    name: '日志审计模块',
+    description: '操作日志、审计记录、行为追踪等',
+    keywords: ['日志', '操作记录', '行为记录', '审计', 'log', '审计记录'],
+    defaultComplexity: 'low',
+    baseDays: 1,
+  },
+  {
+    id: 'cache',
+    name: '缓存模块',
+    description: '数据缓存、本地存储、性能优化等',
+    keywords: ['缓存', '本地缓存', '数据缓存', 'cache', '性能', '速度', '优化'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'backup',
+    name: '备份恢复模块',
+    description: '数据备份、恢复、容灾等',
+    keywords: ['备份', '数据备份', '恢复', '回滚', 'rollback', '存档'],
+    defaultComplexity: 'high',
+    baseDays: 4,
+  },
+  {
+    id: 'file',
+    name: '文件管理模块',
+    description: '文件上传、下载、管理、预览等',
+    keywords: ['文件', '附件', '文档', '图片', '视频', '上传', '下载', '预览'],
+    defaultComplexity: 'medium',
+    baseDays: 2,
+  },
+  {
+    id: 'review',
+    name: '审核审批模块',
+    description: '内容审核、审批流程、复核等',
+    keywords: ['审核', '审批', '复核', '批准', '核查', '校验', '工作流'],
+    defaultComplexity: 'high',
+    baseDays: 4,
+  },
+  {
+    id: 'marketing',
+    name: '营销活动模块',
+    description: '优惠券、积分、促销、活动管理等',
+    keywords: ['优惠券', '积分', '促销', '活动', '营销', '折扣', '卡券', '会员'],
+    defaultComplexity: 'medium',
+    baseDays: 3,
+  },
+  {
+    id: 'logistics',
+    name: '物流配送模块',
+    description: '物流跟踪、快递配送、发货管理等',
+    keywords: ['物流', '快递', '配送', '发货', '运输', '收货'],
+    defaultComplexity: 'high',
+    baseDays: 4,
+  },
+  {
+    id: 'invoice',
+    name: '发票模块',
+    description: '发票开具、管理、查询等',
+    keywords: ['发票', '开票', '税票', '收据', '电子发票'],
+    defaultComplexity: 'medium',
+    baseDays: 3,
+  },
+];
+
+const INTERFACE_PATTERNS: Array<{
+  moduleId: string;
+  name: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  keywords: string[];
+  complexity: 'low' | 'medium' | 'high' | 'critical';
+  breaking: boolean;
+}> = [
+  { moduleId: 'auth', name: '用户登录接口', method: 'POST', path: '/api/auth/login', keywords: ['登录', '认证', '验证码'], complexity: 'high', breaking: true },
+  { moduleId: 'auth', name: '用户注册接口', method: 'POST', path: '/api/auth/register', keywords: ['注册', '账号'], complexity: 'high', breaking: true },
+  { moduleId: 'auth', name: '发送验证码接口', method: 'POST', path: '/api/auth/sms/send', keywords: ['验证码', '短信', '手机'], complexity: 'medium', breaking: false },
+  { moduleId: 'auth', name: '第三方登录接口', method: 'POST', path: '/api/auth/oauth', keywords: ['第三方登录', '微信', 'QQ'], complexity: 'high', breaking: false },
+  { moduleId: 'user', name: '获取用户信息', method: 'GET', path: '/api/user/profile', keywords: ['用户', '个人中心', '资料'], complexity: 'low', breaking: false },
+  { moduleId: 'user', name: '更新用户信息', method: 'PUT', path: '/api/user/profile', keywords: ['用户', '修改', '资料'], complexity: 'medium', breaking: true },
+  { moduleId: 'order', name: '创建订单', method: 'POST', path: '/api/orders', keywords: ['订单', '下单', '创建'], complexity: 'high', breaking: true },
+  { moduleId: 'order', name: '查询订单列表', method: 'GET', path: '/api/orders', keywords: ['订单', '查询', '列表'], complexity: 'medium', breaking: false },
+  { moduleId: 'order', name: '订单详情', method: 'GET', path: '/api/orders/:id', keywords: ['订单', '详情'], complexity: 'low', breaking: false },
+  { moduleId: 'payment', name: '发起支付', method: 'POST', path: '/api/payments', keywords: ['支付', '付款'], complexity: 'critical', breaking: true },
+  { moduleId: 'payment', name: '支付回调', method: 'POST', path: '/api/payments/callback', keywords: ['支付', '回调'], complexity: 'critical', breaking: true },
+  { moduleId: 'payment', name: '申请退款', method: 'POST', path: '/api/payments/refund', keywords: ['退款', '退钱'], complexity: 'high', breaking: true },
+  { moduleId: 'report', name: '获取报表数据', method: 'GET', path: '/api/reports', keywords: ['报表', '统计', '数据'], complexity: 'medium', breaking: false },
+  { moduleId: 'export', name: '导出数据', method: 'GET', path: '/api/export', keywords: ['导出', '下载', 'Excel'], complexity: 'medium', breaking: false },
+  { moduleId: 'import', name: '导入数据', method: 'POST', path: '/api/import', keywords: ['导入', '上传', '批量'], complexity: 'medium', breaking: false },
+  { moduleId: 'notification', name: '获取消息列表', method: 'GET', path: '/api/notifications', keywords: ['通知', '消息'], complexity: 'low', breaking: false },
+  { moduleId: 'notification', name: '标记已读', method: 'PUT', path: '/api/notifications/:id/read', keywords: ['通知', '消息'], complexity: 'low', breaking: false },
+  { moduleId: 'search', name: '全局搜索', method: 'GET', path: '/api/search', keywords: ['搜索', '查询', '查找'], complexity: 'medium', breaking: false },
+  { moduleId: 'api_gateway', name: 'API限流配置', method: 'PUT', path: '/api/admin/rate-limit', keywords: ['限流', 'API', '安全'], complexity: 'high', breaking: false },
+  { moduleId: 'file', name: '文件上传', method: 'POST', path: '/api/files/upload', keywords: ['上传', '文件', '图片'], complexity: 'medium', breaking: false },
+  { moduleId: 'review', name: '提交审核', method: 'POST', path: '/api/reviews/submit', keywords: ['审核', '审批'], complexity: 'medium', breaking: false },
+  { moduleId: 'marketing', name: '优惠券列表', method: 'GET', path: '/api/coupons', keywords: ['优惠券', '促销', '活动'], complexity: 'low', breaking: false },
+  { moduleId: 'logistics', name: '物流查询', method: 'GET', path: '/api/logistics/:id', keywords: ['物流', '快递', '配送'], complexity: 'medium', breaking: false },
+  { moduleId: 'invoice', name: '申请开票', method: 'POST', path: '/api/invoices', keywords: ['发票', '开票'], complexity: 'medium', breaking: false },
+];
+
+const DOWNSTREAM_SYSTEMS: Array<{
+  id: string;
+  name: string;
+  type: 'internal' | 'external' | 'third_party';
+  keywords: string[];
+  contactTeam?: string;
+  baseImpact: 'low' | 'medium' | 'high' | 'critical';
+}> = [
+  { id: 'sms_service', name: '短信服务', type: 'third_party', keywords: ['短信', '验证码', '手机', '通知'], contactTeam: '基础设施团队', baseImpact: 'low' },
+  { id: 'wechat_api', name: '微信开放平台', type: 'third_party', keywords: ['微信', '第三方登录', '支付'], contactTeam: '商务合作组', baseImpact: 'medium' },
+  { id: 'qq_api', name: 'QQ开放平台', type: 'third_party', keywords: ['QQ', '第三方登录'], contactTeam: '商务合作组', baseImpact: 'low' },
+  { id: 'payment_gateway', name: '支付网关', type: 'third_party', keywords: ['支付', '退款', '结算'], contactTeam: '财务系统组', baseImpact: 'critical' },
+  { id: 'user_center', name: '用户中心', type: 'internal', keywords: ['用户', '账号', '登录', '注册'], contactTeam: '用户中心团队', baseImpact: 'high' },
+  { id: 'order_system', name: '订单系统', type: 'internal', keywords: ['订单', '下单', '购物车'], contactTeam: '交易平台团队', baseImpact: 'high' },
+  { id: 'crm_system', name: 'CRM系统', type: 'internal', keywords: ['客户', '用户', '会员'], contactTeam: 'CRM团队', baseImpact: 'medium' },
+  { id: 'data_warehouse', name: '数据仓库', type: 'internal', keywords: ['报表', '统计', '数据', '分析'], contactTeam: '数据平台团队', baseImpact: 'medium' },
+  { id: 'logistics_system', name: '物流系统', type: 'external', keywords: ['物流', '快递', '配送', '发货'], contactTeam: '供应链团队', baseImpact: 'high' },
+  { id: 'invoice_system', name: '发票系统', type: 'external', keywords: ['发票', '开票', '税票'], contactTeam: '财务系统组', baseImpact: 'medium' },
+  { id: 'message_queue', name: '消息队列', type: 'internal', keywords: ['通知', '消息', '异步', '队列'], contactTeam: '基础设施团队', baseImpact: 'medium' },
+  { id: 'elasticsearch', name: '搜索引擎', type: 'internal', keywords: ['搜索', '查询', '检索'], contactTeam: '搜索团队', baseImpact: 'medium' },
+  { id: 'file_storage', name: '对象存储', type: 'third_party', keywords: ['文件', '上传', '图片', '视频'], contactTeam: '基础设施团队', baseImpact: 'low' },
+  { id: 'monitoring', name: '监控告警系统', type: 'internal', keywords: ['告警', '监控', '日志'], contactTeam: '运维团队', baseImpact: 'low' },
+];
+
+function setHasSome<T>(set: Set<T>, predicate: (value: T) => boolean): boolean {
+  for (const value of set) {
+    if (predicate(value)) return true;
   }
+  return false;
+}
+
+function calculateModuleRelevance(module: ModuleDefinition, keywords: string[], text: string): number {
+  let score = 0;
+  const normText = normalizeText(text);
+  
+  for (const keyword of module.keywords) {
+    const normKeyword = normalizeText(keyword);
+    if (normKeyword.length < 2) continue;
+    
+    const expanded = expandWithSynonyms(keyword);
+    for (const expandedKw of expanded) {
+      const normExpanded = normalizeText(expandedKw);
+      if (normText.includes(normExpanded)) {
+        score += getKeywordWeight(keyword) * 2;
+        break;
+      }
+    }
+  }
+  
+  for (const kw of keywords) {
+    const normKw = normalizeText(kw);
+    for (const moduleKw of module.keywords) {
+      const normModuleKw = normalizeText(moduleKw);
+      if (normKw === normModuleKw || normKw.includes(normModuleKw) || normModuleKw.includes(normKw)) {
+        score += getKeywordWeight(kw) * 3;
+        break;
+      }
+    }
+  }
+  
+  return score;
+}
+
+function assessComplexity(baseComplexity: string, keywordCount: number, hasBreaking: boolean): 'low' | 'medium' | 'high' | 'critical' {
+  const complexityOrder = ['low', 'medium', 'high', 'critical'];
+  let idx = complexityOrder.indexOf(baseComplexity);
+  
+  if (keywordCount >= 5) idx = Math.min(3, idx + 2);
+  else if (keywordCount >= 3) idx = Math.min(3, idx + 1);
+  
+  if (hasBreaking) idx = Math.min(3, idx + 1);
+  
+  return complexityOrder[idx] as 'low' | 'medium' | 'high' | 'critical';
+}
+
+function calculateEstimatedDays(baseDays: number, complexity: string, keywordCount: number): number {
+  const complexityMultiplier: Record<string, number> = {
+    low: 0.8,
+    medium: 1.0,
+    high: 1.5,
+    critical: 2.5,
+  };
+  
+  const multiplier = complexityMultiplier[complexity] || 1;
+  const keywordBoost = Math.min(2, 1 + keywordCount * 0.15);
+  
+  return Math.round(baseDays * multiplier * keywordBoost * 10) / 10;
+}
+
+export interface ImpactAssessmentResult {
+  overallComplexity: 'low' | 'medium' | 'high' | 'critical';
+  totalEstimatedDays: number;
+  totalRegressionHours: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  affectedModules: Array<{
+    id: string;
+    name: string;
+    description: string;
+    changeType: 'modify' | 'add' | 'remove';
+    complexity: 'low' | 'medium' | 'high' | 'critical';
+    estimatedDays: number;
+    relatedKeywords: string[];
+  }>;
+  affectedInterfaces: Array<{
+    id: string;
+    name: string;
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+    path: string;
+    changeType: 'modify' | 'add' | 'remove';
+    description: string;
+    complexity: 'low' | 'medium' | 'high' | 'critical';
+    breakingChange: boolean;
+  }>;
+  downstreamSystems: Array<{
+    id: string;
+    name: string;
+    type: 'internal' | 'external' | 'third_party';
+    impactDescription: string;
+    impactLevel: 'low' | 'medium' | 'high' | 'critical';
+    contactTeam?: string;
+  }>;
+  regressionScopes: Array<{
+    id: string;
+    name: string;
+    description: string;
+    testType: 'unit' | 'integration' | 'e2e' | 'manual';
+    priority: 'critical' | 'high' | 'medium' | 'low';
+    estimatedHours: number;
+  }>;
+  summary: string;
+  recommendations: string[];
+}
+
+export function assessImpact(title: string, description: string): ImpactAssessmentResult {
+  const combinedText = `${title} ${description}`;
+  const keywords = extractSemanticKeywords(combinedText);
+  
+  const moduleScores: Array<{ module: ModuleDefinition; score: number; matchedKeywords: string[] }> = [];
+  
+  for (const module of SYSTEM_MODULES) {
+    const score = calculateModuleRelevance(module, keywords, combinedText);
+    if (score > 0) {
+      const matchedKeywords = module.keywords.filter(kw => {
+        const normKw = normalizeText(kw);
+        const expanded = expandWithSynonyms(kw);
+        return setHasSome(expanded, e => normalizeText(combinedText).includes(normalizeText(e)));
+      });
+      moduleScores.push({ module, score, matchedKeywords });
+    }
+  }
+  
+  moduleScores.sort((a, b) => b.score - a.score);
+  
+  const hasBreakingChange = keywords.some(kw => 
+    ['支付', '退款', '登录', '注册', '订单', '接口', 'API'].some(k => normalizeText(kw).includes(normalizeText(k)))
+  );
+  
+  const affectedModules = moduleScores.slice(0, 8).map(({ module, matchedKeywords }) => {
+    const complexity = assessComplexity(module.defaultComplexity, matchedKeywords.length, hasBreakingChange);
+    const estimatedDays = calculateEstimatedDays(module.baseDays, complexity, matchedKeywords.length);
+    
+    return {
+      id: module.id,
+      name: module.name,
+      description: module.description,
+      changeType: 'modify' as const,
+      complexity,
+      estimatedDays,
+      relatedKeywords: matchedKeywords.slice(0, 5),
+    };
+  });
+  
+  const moduleIds = new Set(affectedModules.map(m => m.id));
+  
+  const affectedInterfaces = INTERFACE_PATTERNS
+    .filter(iface => {
+      if (!moduleIds.has(iface.moduleId)) return false;
+      return iface.keywords.some(kw => {
+        const expanded = expandWithSynonyms(kw);
+        return setHasSome(expanded, e => normalizeText(combinedText).includes(normalizeText(e)));
+      });
+    })
+    .map(iface => ({
+      id: `IF-${iface.moduleId.toUpperCase()}-${iface.method}`,
+      name: iface.name,
+      method: iface.method,
+      path: iface.path,
+      changeType: 'modify' as const,
+      description: `${iface.method} ${iface.path}`,
+      complexity: iface.complexity,
+      breakingChange: iface.breaking,
+    }));
+  
+  const downstreamSystems = DOWNSTREAM_SYSTEMS
+    .filter(system => {
+      return system.keywords.some(kw => {
+        const expanded = expandWithSynonyms(kw);
+        return setHasSome(expanded, e => normalizeText(combinedText).includes(normalizeText(e)));
+      });
+    })
+    .map(system => {
+      const impactLevel = assessComplexity(system.baseImpact, 0, hasBreakingChange);
+      return {
+        id: system.id,
+        name: system.name,
+        type: system.type,
+        impactDescription: `需求涉及${system.keywords.join('、')}相关功能，可能影响${system.name}的${system.type === 'third_party' ? '第三方' : system.type === 'internal' ? '内部' : '外部'}对接`,
+        impactLevel,
+        contactTeam: system.contactTeam,
+      };
+    });
+  
+  const regressionScopes: Array<{
+    id: string;
+    name: string;
+    description: string;
+    testType: 'unit' | 'integration' | 'e2e' | 'manual';
+    priority: 'critical' | 'high' | 'medium' | 'low';
+    estimatedHours: number;
+  }> = [];
+  
+  let regressionHours = 0;
+  
+  for (const module of affectedModules) {
+    const moduleName = module.name;
+    
+    regressionScopes.push({
+      id: `REG-UNIT-${module.id}`,
+      name: `${moduleName} - 单元测试`,
+      description: `对${moduleName}的核心逻辑进行单元测试覆盖`,
+      testType: 'unit',
+      priority: module.complexity === 'critical' ? 'critical' : module.complexity === 'high' ? 'high' : 'medium',
+      estimatedHours: Math.round(module.estimatedDays * 2 * 10) / 10,
+    });
+    regressionHours += module.estimatedDays * 2;
+    
+    regressionScopes.push({
+      id: `REG-INT-${module.id}`,
+      name: `${moduleName} - 集成测试`,
+      description: `验证${moduleName}与其他模块的集成交互`,
+      testType: 'integration',
+      priority: module.complexity === 'critical' || module.complexity === 'high' ? 'high' : 'medium',
+      estimatedHours: Math.round(module.estimatedDays * 1.5 * 10) / 10,
+    });
+    regressionHours += module.estimatedDays * 1.5;
+  }
+  
+  if (affectedInterfaces.length > 0) {
+    regressionScopes.push({
+      id: 'REG-API-ALL',
+      name: 'API接口回归测试',
+      description: `验证${affectedInterfaces.length}个受影响接口的功能正确性和兼容性`,
+      testType: 'integration',
+      priority: affectedInterfaces.some(i => i.breakingChange) ? 'critical' : 'high',
+      estimatedHours: affectedInterfaces.length * 2,
+    });
+    regressionHours += affectedInterfaces.length * 2;
+  }
+  
+  if (downstreamSystems.length > 0) {
+    regressionScopes.push({
+      id: 'REG-E2E-DOWNSTREAM',
+      name: '下游系统联调测试',
+      description: `与${downstreamSystems.length}个下游系统进行联调验证`,
+      testType: 'e2e',
+      priority: downstreamSystems.some(s => s.impactLevel === 'critical') ? 'critical' : 'high',
+      estimatedHours: downstreamSystems.length * 4,
+    });
+    regressionHours += downstreamSystems.length * 4;
+  }
+  
+  regressionScopes.push({
+    id: 'REG-MANUAL-ALL',
+    name: '整体功能手工测试',
+    description: '对核心业务流程进行手工验证，确保端到端体验',
+    testType: 'manual',
+    priority: affectedModules.length > 5 ? 'high' : 'medium',
+    estimatedHours: Math.round(affectedModules.length * 1.5 * 10) / 10,
+  });
+  regressionHours += affectedModules.length * 1.5;
+  
+  const totalEstimatedDays = affectedModules.reduce((sum, m) => sum + m.estimatedDays, 0);
+  const avgComplexity = affectedModules.length > 0
+    ? affectedModules.reduce((sum, m) => {
+        const weights: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+        return sum + (weights[m.complexity] || 2);
+      }, 0) / affectedModules.length
+    : 1;
+  
+  let overallComplexity: 'low' | 'medium' | 'high' | 'critical';
+  if (avgComplexity >= 3.5) overallComplexity = 'critical';
+  else if (avgComplexity >= 2.5) overallComplexity = 'high';
+  else if (avgComplexity >= 1.5) overallComplexity = 'medium';
+  else overallComplexity = 'low';
+  
+  const riskFactors = [
+    hasBreakingChange,
+    affectedInterfaces.some(i => i.breakingChange),
+    downstreamSystems.some(s => s.impactLevel === 'critical'),
+    overallComplexity === 'critical',
+    affectedModules.length >= 5,
+  ];
+  
+  const riskCount = riskFactors.filter(Boolean).length;
+  let riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  if (riskCount >= 4) riskLevel = 'critical';
+  else if (riskCount >= 2) riskLevel = 'high';
+  else if (riskCount >= 1) riskLevel = 'medium';
+  else riskLevel = 'low';
+  
+  const recommendations: string[] = [];
+  
+  if (hasBreakingChange) {
+    recommendations.push('存在破坏性变更，建议制定详细的版本升级计划，提供过渡期和迁移方案');
+  }
+  
+  if (downstreamSystems.some(s => s.impactLevel === 'critical')) {
+    recommendations.push('涉及关键下游系统，建议提前与对接团队沟通，安排联调时间');
+  }
+  
+  if (overallComplexity === 'critical' || overallComplexity === 'high') {
+    recommendations.push('整体复杂度较高，建议拆分为多个迭代逐步交付，降低单次发布风险');
+  }
+  
+  if (affectedModules.length >= 4) {
+    recommendations.push('涉及模块较多，建议安排架构评审，确保整体设计方案合理');
+  }
+  
+  if (keywords.some(kw => normalizeText(kw).includes('支付') || normalizeText(kw).includes('退款'))) {
+    recommendations.push('涉及资金相关功能，建议增加安全审计和灰度发布流程');
+  }
+  
+  if (keywords.some(kw => normalizeText(kw).includes('登录') || normalizeText(kw).includes('认证'))) {
+    recommendations.push('涉及认证流程，建议进行安全测试，防范OWASP Top 10风险');
+  }
+  
+  if (riskLevel === 'high' || riskLevel === 'critical') {
+    recommendations.push('整体风险较高，建议预留额外的缓冲时间（建议增加20%工期）');
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push('整体影响可控，按常规开发流程推进即可');
+  }
+  
+  const summary = `本需求预估涉及 ${affectedModules.length} 个功能模块、${affectedInterfaces.length} 个接口、${downstreamSystems.length} 个下游系统。整体复杂度为${overallComplexity === 'low' ? '低' : overallComplexity === 'medium' ? '中' : overallComplexity === 'high' ? '高' : '极高'}，预估开发周期约 ${Math.round(totalEstimatedDays)} 天，回归测试约 ${Math.round(regressionHours)} 小时。风险等级为${riskLevel === 'low' ? '低' : riskLevel === 'medium' ? '中' : riskLevel === 'high' ? '高' : '极高'}。`;
+  
+  return {
+    overallComplexity,
+    totalEstimatedDays: Math.round(totalEstimatedDays * 10) / 10,
+    totalRegressionHours: Math.round(regressionHours * 10) / 10,
+    riskLevel,
+    affectedModules,
+    affectedInterfaces,
+    downstreamSystems,
+    regressionScopes,
+    summary,
+    recommendations,
+  };
 }

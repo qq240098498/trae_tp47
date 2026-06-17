@@ -144,3 +144,97 @@ export interface DuplicateCheckResult {
   matches: DuplicateMatch[];
   threshold: number;
 }
+
+export type ImpactComplexity = 'low' | 'medium' | 'high' | 'critical';
+
+export const IMPACT_COMPLEXITY_LABELS: Record<ImpactComplexity, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+  critical: '极高',
+};
+
+export const IMPACT_COMPLEXITY_COLORS: Record<ImpactComplexity, string> = {
+  low: 'text-green-600 bg-green-50 border-green-200',
+  medium: 'text-yellow-600 bg-yellow-50 border-yellow-200',
+  high: 'text-orange-600 bg-orange-50 border-orange-200',
+  critical: 'text-red-600 bg-red-50 border-red-200',
+};
+
+export interface AffectedModule {
+  id: string;
+  name: string;
+  description: string;
+  changeType: 'modify' | 'add' | 'remove';
+  complexity: ImpactComplexity;
+  estimatedDays: number;
+  relatedKeywords: string[];
+}
+
+export interface AffectedInterface {
+  id: string;
+  name: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  changeType: 'modify' | 'add' | 'remove';
+  description: string;
+  complexity: ImpactComplexity;
+  breakingChange: boolean;
+}
+
+export interface DownstreamSystem {
+  id: string;
+  name: string;
+  type: 'internal' | 'external' | 'third_party';
+  impactDescription: string;
+  impactLevel: ImpactComplexity;
+  contactTeam?: string;
+}
+
+export interface RegressionScope {
+  id: string;
+  name: string;
+  description: string;
+  testType: 'unit' | 'integration' | 'e2e' | 'manual';
+  priority: PriorityLevel;
+  estimatedHours: number;
+}
+
+export interface ImpactAssessment {
+  requirementId: string;
+  overallComplexity: ImpactComplexity;
+  totalEstimatedDays: number;
+  totalRegressionHours: number;
+  riskLevel: ImpactComplexity;
+  affectedModules: AffectedModule[];
+  affectedInterfaces: AffectedInterface[];
+  downstreamSystems: DownstreamSystem[];
+  regressionScopes: RegressionScope[];
+  summary: string;
+  recommendations: string[];
+}
+
+export const DOWNSTREAM_SYSTEM_TYPE_LABELS: Record<DownstreamSystem['type'], string> = {
+  internal: '内部系统',
+  external: '外部系统',
+  third_party: '第三方服务',
+};
+
+export const CHANGE_TYPE_LABELS: Record<AffectedModule['changeType'], string> = {
+  modify: '修改',
+  add: '新增',
+  remove: '移除',
+};
+
+export const CHANGE_TYPE_COLORS: Record<AffectedModule['changeType'], string> = {
+  modify: 'text-blue-600 bg-blue-50',
+  add: 'text-green-600 bg-green-50',
+  remove: 'text-red-600 bg-red-50',
+};
+
+export const TEST_TYPE_LABELS: Record<RegressionScope['testType'], string> = {
+  unit: '单元测试',
+  integration: '集成测试',
+  e2e: '端到端测试',
+  manual: '手动测试',
+};

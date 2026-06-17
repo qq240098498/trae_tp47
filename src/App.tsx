@@ -6,6 +6,7 @@ import RequirementDetail from "@/pages/RequirementDetail";
 import Prioritization from "@/pages/Prioritization";
 import Dependencies from "@/pages/Dependencies";
 import Tracking from "@/pages/Tracking";
+import ImpactAssessment from "@/pages/ImpactAssessment";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="requirements/:id" element={<RequirementDetail />} />
           <Route path="prioritization" element={<Prioritization />} />
           <Route path="dependencies" element={<Dependencies />} />
+          <Route path="impact-assessment" element={<ImpactAssessment />} />
           <Route path="tracking" element={<Tracking />} />
         </Route>
       </Routes>
