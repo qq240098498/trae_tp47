@@ -7,8 +7,10 @@ import type {
   PriorityScore,
   Dependency,
   PriorityLevel,
+  DuplicateCheckResult,
 } from '@/types';
 import { mockRequirements, mockDependencies } from '@/data/mockData';
+import { calculateRequirementSimilarity } from '@/lib/utils';
 
 interface RequirementStore {
   requirements: Requirement[];
@@ -17,17 +19,21 @@ interface RequirementStore {
   filterStatus: RequirementStatus | 'all';
   filterPriority: PriorityLevel | 'all';
   searchQuery: string;
+  duplicateCheckThreshold: number;
 
   setSelectedRequirementId: (id: string | null) => void;
   setFilterStatus: (status: RequirementStatus | 'all') => void;
   setFilterPriority: (priority: PriorityLevel | 'all') => void;
   setSearchQuery: (query: string) => void;
+  setDuplicateCheckThreshold: (threshold: number) => void;
 
   getRequirementById: (id: string) => Requirement | undefined;
   getFilteredRequirements: () => Requirement[];
   getRequirementsByStatus: (status: RequirementStatus) => Requirement[];
   getDependenciesForRequirement: (requirementId: string) => Dependency[];
   getConflictsForRequirement: (requirementId: string) => Dependency[];
+
+  checkForDuplicates: (title: string, description: string, excludeId?: string) => DuplicateCheckResult;
 
   addRequirement: (requirement: Omit<Requirement, 'id' | 'createdAt' | 'updatedAt' | 'dependents' | 'conflicts'>) => void;
   updateRequirement: (id: string, updates: Partial<Requirement>) => void;
@@ -71,11 +77,46 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   filterStatus: 'all',
   filterPriority: 'all',
   searchQuery: '',
+  duplicateCheckThreshold: 0.6,
 
   setSelectedRequirementId: (id) => set({ selectedRequirementId: id }),
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterPriority: (priority) => set({ filterPriority: priority }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  setDuplicateCheckThreshold: (threshold) => set({ duplicateCheckThreshold: threshold }),
+
+  checkForDuplicates: (title, description, excludeId) => {
+    const { requirements, duplicateCheckThreshold } = get();
+    const matches = [];
+
+    for (const req of requirements) {
+      if (excludeId && req.id === excludeId) continue;
+      if (req.status === 'archived') continue;
+
+      const { similarity, matchedFields } = calculateRequirementSimilarity(
+        title,
+        description,
+        req.title,
+        req.description
+      );
+
+      if (similarity >= duplicateCheckThreshold && matchedFields.length > 0) {
+        matches.push({
+          requirement: req,
+          similarity,
+          matchedFields,
+        });
+      }
+    }
+
+    matches.sort((a, b) => b.similarity - a.similarity);
+
+    return {
+      hasDuplicates: matches.length > 0,
+      matches,
+      threshold: duplicateCheckThreshold,
+    };
+  },
 
   getRequirementById: (id) => {
     return get().requirements.find((r) => r.id === id);

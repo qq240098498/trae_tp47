@@ -131,3 +131,15 @@ export const DEPENDENCY_TYPE_COLORS: Record<Dependency['type'], string> = {
   related: 'text-gray-600 bg-gray-50 border-gray-200',
   conflicts: 'text-orange-600 bg-orange-50 border-orange-200',
 };
+
+export interface DuplicateMatch {
+  requirement: Requirement;
+  similarity: number;
+  matchedFields: string[];
+}
+
+export interface DuplicateCheckResult {
+  hasDuplicates: boolean;
+  matches: DuplicateMatch[];
+  threshold: number;
+}

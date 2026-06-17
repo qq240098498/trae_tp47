@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRequirementStore } from '@/store/useRequirementStore';
 import {
@@ -11,10 +11,14 @@ import {
   Calendar,
   User,
   X,
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { StatusBadge, PriorityBadge, SourceBadge, TagBadge } from '@/components/Badges';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/types';
-import type { RequirementStatus, PriorityLevel, Requirement, RequirementSource, AcceptanceCriterion, UserStory, PriorityScore } from '@/types';
+import type { RequirementStatus, PriorityLevel, Requirement, RequirementSource, AcceptanceCriterion, UserStory, PriorityScore, DuplicateMatch } from '@/types';
 import { cn } from '@/lib/utils';
 
 type SortField = 'createdAt' | 'updatedAt' | 'priority' | 'score';
@@ -32,6 +36,7 @@ export default function Requirements() {
     setFilterPriority,
     getFilteredRequirements,
     addRequirement,
+    checkForDuplicates,
   } = useRequirementStore();
 
   const [sortField, setSortField] = useState<SortField>('updatedAt');
@@ -293,6 +298,8 @@ export default function Requirements() {
             addRequirement(req);
             setShowModal(false);
           }}
+          checkForDuplicates={checkForDuplicates}
+          navigate={navigate}
         />
       )}
     </div>
@@ -302,9 +309,11 @@ export default function Requirements() {
 interface CreateRequirementModalProps {
   onClose: () => void;
   onSubmit: (req: Omit<Requirement, 'id' | 'createdAt' | 'updatedAt' | 'dependents' | 'conflicts'>) => void;
+  checkForDuplicates: (title: string, description: string) => { hasDuplicates: boolean; matches: DuplicateMatch[]; threshold: number };
+  navigate: (path: string) => void;
 }
 
-function CreateRequirementModal({ onClose, onSubmit }: CreateRequirementModalProps) {
+function CreateRequirementModal({ onClose, onSubmit, checkForDuplicates, navigate }: CreateRequirementModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -326,6 +335,21 @@ function CreateRequirementModal({ onClose, onSubmit }: CreateRequirementModalPro
     { description: '', testable: true, status: 'pending' },
   ]);
   const [activeTab, setActiveTab] = useState<'basic' | 'story' | 'criteria' | 'score'>('basic');
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+
+  const duplicateCheckResult = useMemo(() => {
+    if (!formData.title.trim() && !formData.description.trim()) {
+      return { hasDuplicates: false, matches: [], threshold: 0.6 };
+    }
+    return checkForDuplicates(formData.title, formData.description);
+  }, [formData.title, formData.description, checkForDuplicates]);
+
+  useEffect(() => {
+    if (duplicateCheckResult.hasDuplicates) {
+      setShowDuplicateWarning(true);
+    }
+  }, [duplicateCheckResult.hasDuplicates]);
 
   const handleChange = (field: keyof typeof formData, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -539,6 +563,150 @@ function CreateRequirementModal({ onClose, onSubmit }: CreateRequirementModalPro
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </div>
+
+              {(formData.title.trim() || formData.description.trim()) && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  {duplicateCheckResult.hasDuplicates ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-amber-800">
+                              检测到 {duplicateCheckResult.matches.length} 条疑似重复的需求
+                            </h4>
+                            <button
+                              onClick={() => setShowDuplicateWarning(!showDuplicateWarning)}
+                              className="text-xs text-amber-600 hover:text-amber-800"
+                            >
+                              {showDuplicateWarning ? '收起详情' : '查看详情'}
+                            </button>
+                          </div>
+                          <p className="mt-1 text-xs text-amber-700">
+                            相似度阈值：{(duplicateCheckResult.threshold * 100).toFixed(0)}%，建议先核对是否为同一诉求
+                          </p>
+                        </div>
+                      </div>
+
+                      {showDuplicateWarning && (
+                        <div className="mt-4 space-y-4">
+                          {duplicateCheckResult.matches.map((match, index) => (
+                            <div
+                              key={match.requirement.id}
+                              className="rounded-lg border border-amber-200 bg-white overflow-hidden"
+                            >
+                              <div className="bg-amber-100 px-4 py-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-amber-800">
+                                    疑似重复 #{index + 1}
+                                  </span>
+                                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-800">
+                                    相似度 {(match.similarity * 100).toFixed(1)}%
+                                  </span>
+                                  {match.matchedFields.includes('title') && (
+                                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                                      标题匹配
+                                    </span>
+                                  )}
+                                  {match.matchedFields.includes('description') && (
+                                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                                      描述匹配
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    navigate(`/requirements/${match.requirement.id}`);
+                                    onClose();
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  查看详情
+                                </button>
+                              </div>
+
+                              <div className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                                        新需求
+                                      </span>
+                                    </div>
+                                    <h5 className="text-sm font-medium text-gray-900 mb-1">
+                                      {formData.title || '(未填写标题)'}
+                                    </h5>
+                                    <p className="text-xs text-gray-600 line-clamp-3">
+                                      {formData.description || '(未填写描述)'}
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <span className="text-xs font-medium text-amber-700 bg-amber-200 px-2 py-0.5 rounded">
+                                        已有需求
+                                      </span>
+                                      <span className="font-mono text-xs text-gray-400">
+                                        {match.requirement.id}
+                                      </span>
+                                    </div>
+                                    <h5 className="text-sm font-medium text-gray-900 mb-1">
+                                      {match.requirement.title}
+                                    </h5>
+                                    <p className="text-xs text-gray-600 line-clamp-3 mb-2">
+                                      {match.requirement.description}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                      <StatusBadge status={match.requirement.status} />
+                                      <div className="flex items-center gap-1 text-gray-500">
+                                        <User className="h-3 w-3" />
+                                        {match.requirement.assignee || '未分配'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-between pt-3 border-t border-gray-100">
+                                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      创建于 {new Date(match.requirement.createdAt).toLocaleDateString('zh-CN')}
+                                    </div>
+                                    {match.requirement.estimatedDays && (
+                                      <div>预估工期 {match.requirement.estimatedDays} 天</div>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        title: match.requirement.title,
+                                        description: match.requirement.description,
+                                      }));
+                                    }}
+                                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    复制内容
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-sm text-green-700">
+                        未检测到相似需求，可以放心创建
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
