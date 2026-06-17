@@ -27,8 +27,47 @@ import {
   SENTIMENT_COLORS,
 } from '@/types';
 import { cn } from '@/lib/utils';
-import type { FeedbackChannel, UserVoiceDemand, SentimentType } from '@/types';
+import type { FeedbackChannel, UserVoiceDemand, SentimentType, UserFeedbackItem } from '@/types';
 import { useNavigate } from 'react-router-dom';
+
+const SENTIMENT_OPTIONS: Array<{ value: SentimentType | 'auto'; label: string; icon: typeof Quote | typeof MessageSquare; borderColor: string; bgColor: string; textColor: string; dotColor: string }> = [
+  {
+    value: 'auto',
+    label: '自动检测',
+    icon: MessageSquare,
+    borderColor: 'border-gray-300',
+    bgColor: 'bg-white',
+    textColor: 'text-gray-700',
+    dotColor: 'bg-gradient-to-r from-green-500 via-gray-400 to-red-500',
+  },
+  {
+    value: 'positive',
+    label: '正面',
+    icon: Quote,
+    borderColor: 'border-green-300',
+    bgColor: 'bg-green-50',
+    textColor: 'text-green-700',
+    dotColor: 'bg-green-500',
+  },
+  {
+    value: 'neutral',
+    label: '中性',
+    icon: Quote,
+    borderColor: 'border-gray-300',
+    bgColor: 'bg-gray-50',
+    textColor: 'text-gray-700',
+    dotColor: 'bg-gray-400',
+  },
+  {
+    value: 'negative',
+    label: '负面',
+    icon: Quote,
+    borderColor: 'border-red-300',
+    bgColor: 'bg-red-50',
+    textColor: 'text-red-700',
+    dotColor: 'bg-red-500',
+  },
+];
 
 type SortBy = 'heat' | 'mentions' | 'negative' | 'trend';
 
@@ -82,9 +121,10 @@ export default function UserVoice() {
     userVoiceSortBy,
     setUserVoiceSortBy,
     getRequirementById,
-    getUserFeedbacks,
     addUserFeedback,
   } = useRequirementStore();
+
+  const userFeedbacks = useRequirementStore((state) => state.userFeedbacks);
 
   const [expandedDemandId, setExpandedDemandId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
@@ -94,12 +134,19 @@ export default function UserVoice() {
     channel: 'customer_service' as FeedbackChannel,
     content: '',
     userId: '',
+    sentiment: 'auto' as SentimentType | 'auto',
   });
   const [formErrors, setFormErrors] = useState<{ content?: string }>({});
 
   const statistics = useMemo(() => getUserVoiceStatistics(), [getUserVoiceStatistics]);
   const demands = useMemo(() => getUserVoiceDemands(), [getUserVoiceDemands]);
-  const feedbacks = useMemo(() => getUserFeedbacks(), [getUserFeedbacks]);
+  const feedbacks = useMemo(
+    () =>
+      [...userFeedbacks].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      ),
+    [userFeedbacks]
+  );
 
   const negativeRate = (demand: UserVoiceDemand) => {
     const total = demand.sentimentBreakdown.positive + demand.sentimentBreakdown.neutral + demand.sentimentBreakdown.negative;
@@ -146,10 +193,19 @@ export default function UserVoice() {
     const lower = content.toLowerCase();
     for (const kw of posKeywords) { if (lower.includes(kw)) posScore++; }
     for (const kw of negKeywords) { if (lower.includes(kw)) negScore++; }
-    let sentiment: SentimentType = 'neutral';
-    let sentimentScore = 0;
-    if (posScore > negScore) { sentiment = 'positive'; sentimentScore = Math.min(posScore / (posScore + negScore + 1), 1); }
-    else if (negScore > posScore) { sentiment = 'negative'; sentimentScore = -Math.min(negScore / (posScore + negScore + 1), 1); }
+    let determinedSentiment: SentimentType = 'neutral';
+    let determinedSentimentScore = 0;
+    if (posScore > negScore) { determinedSentiment = 'positive'; determinedSentimentScore = Math.min(posScore / (posScore + negScore + 1), 1); }
+    else if (negScore > posScore) { determinedSentiment = 'negative'; determinedSentimentScore = -Math.min(negScore / (posScore + negScore + 1), 1); }
+
+    const finalSentiment = formData.sentiment === 'auto' ? determinedSentiment : formData.sentiment;
+    const finalScore = formData.sentiment === 'auto'
+      ? determinedSentimentScore
+      : formData.sentiment === 'positive'
+        ? 0.8
+        : formData.sentiment === 'negative'
+          ? -0.8
+          : 0;
 
     const stopwords = new Set(['的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '他', '她', '它', '吗', '吧', '啊', '呢']);
     const keywords = content
@@ -161,13 +217,13 @@ export default function UserVoice() {
     addUserFeedback({
       channel: formData.channel,
       content,
-      sentiment,
-      sentimentScore,
+      sentiment: finalSentiment,
+      sentimentScore: finalScore,
       keywords,
       userId: formData.userId.trim() || undefined,
     });
 
-    setFormData({ channel: 'customer_service', content: '', userId: '' });
+    setFormData({ channel: 'customer_service', content: '', userId: '', sentiment: 'auto' });
     setFormErrors({});
     setShowFeedbackForm(false);
   };
@@ -233,6 +289,33 @@ export default function UserVoice() {
                         )}
                       >
                         <opt.icon className="h-4 w-4" />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  情绪判断
+                  <span className="ml-1 text-xs text-gray-400">（默认根据内容自动检测，也可手动指定）</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {SENTIMENT_OPTIONS.map((opt) => {
+                    const selected = formData.sentiment === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setFormData({ ...formData, sentiment: opt.value })}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                          selected
+                            ? `${opt.borderColor} ${opt.bgColor} ${opt.textColor} ring-2 ring-offset-1 ${opt.value === 'auto' ? 'ring-blue-300' : opt.value === 'positive' ? 'ring-green-300' : opt.value === 'negative' ? 'ring-red-300' : 'ring-gray-300'}`
+                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        )}
+                      >
+                        <span className={cn('h-2.5 w-2.5 rounded-full', opt.dotColor)} />
                         {opt.label}
                       </button>
                     );
