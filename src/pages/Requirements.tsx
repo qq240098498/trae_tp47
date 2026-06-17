@@ -10,10 +10,11 @@ import {
   ArrowUpDown,
   Calendar,
   User,
+  X,
 } from 'lucide-react';
 import { StatusBadge, PriorityBadge, SourceBadge, TagBadge } from '@/components/Badges';
 import { STATUS_LABELS, PRIORITY_LABELS } from '@/types';
-import type { RequirementStatus, PriorityLevel, Requirement } from '@/types';
+import type { RequirementStatus, PriorityLevel, Requirement, RequirementSource, AcceptanceCriterion, UserStory, PriorityScore } from '@/types';
 import { cn } from '@/lib/utils';
 
 type SortField = 'createdAt' | 'updatedAt' | 'priority' | 'score';
@@ -30,11 +31,13 @@ export default function Requirements() {
     setFilterStatus,
     setFilterPriority,
     getFilteredRequirements,
+    addRequirement,
   } = useRequirementStore();
 
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showFilterPanel, setShowFilterPanel] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   const filteredRequirements = getFilteredRequirements();
 
@@ -98,9 +101,7 @@ export default function Requirements() {
           </p>
         </div>
         <button
-          onClick={() => {
-            /* TODO: 新建需求弹窗 */
-          }}
+          onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" />
@@ -283,6 +284,429 @@ export default function Requirements() {
             </div>
           ))
         )}
+      </div>
+
+      {showModal && (
+        <CreateRequirementModal
+          onClose={() => setShowModal(false)}
+          onSubmit={(req) => {
+            addRequirement(req);
+            setShowModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface CreateRequirementModalProps {
+  onClose: () => void;
+  onSubmit: (req: Omit<Requirement, 'id' | 'createdAt' | 'updatedAt' | 'dependents' | 'conflicts'>) => void;
+}
+
+function CreateRequirementModal({ onClose, onSubmit }: CreateRequirementModalProps) {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    source: 'user_feedback' as RequirementSource,
+    priority: 'medium' as PriorityLevel,
+    status: 'draft' as RequirementStatus,
+    asA: '',
+    iWant: '',
+    soThat: '',
+    userValue: 5,
+    implementationCost: 5,
+    strategicAlignment: 5,
+    urgency: 5,
+    assignee: '',
+    estimatedDays: '',
+    tags: '',
+  });
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState<{ description: string; testable: boolean; status: 'pending' }[]>([
+    { description: '', testable: true, status: 'pending' },
+  ]);
+  const [activeTab, setActiveTab] = useState<'basic' | 'story' | 'criteria' | 'score'>('basic');
+
+  const handleChange = (field: keyof typeof formData, value: string | number) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const addCriterion = () => {
+    setAcceptanceCriteria((prev) => [...prev, { description: '', testable: true, status: 'pending' }]);
+  };
+
+  const updateCriterion = (index: number, value: string) => {
+    setAcceptanceCriteria((prev) => prev.map((ac, i) => (i === index ? { ...ac, description: value } : ac)));
+  };
+
+  const removeCriterion = (index: number) => {
+    if (acceptanceCriteria.length > 1) {
+      setAcceptanceCriteria((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!formData.title.trim()) {
+      alert('请输入需求标题');
+      return;
+    }
+    if (!formData.asA.trim() || !formData.iWant.trim() || !formData.soThat.trim()) {
+      alert('请完整填写用户故事');
+      return;
+    }
+
+    const validCriteria = acceptanceCriteria.filter((ac) => ac.description.trim());
+    if (validCriteria.length === 0) {
+      alert('请至少添加一条验收标准');
+      return;
+    }
+
+    const score: PriorityScore = {
+      userValue: formData.userValue,
+      implementationCost: formData.implementationCost,
+      strategicAlignment: formData.strategicAlignment,
+      urgency: formData.urgency,
+      finalScore: 0,
+    };
+
+    const userStory: UserStory = {
+      asA: formData.asA,
+      iWant: formData.iWant,
+      soThat: formData.soThat,
+    };
+
+    const criteria: AcceptanceCriterion[] = validCriteria.map((ac) => ({
+      id: '',
+      description: ac.description,
+      testable: ac.testable,
+      status: ac.status,
+    }));
+
+    const tags = formData.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t);
+
+    onSubmit({
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      source: formData.source,
+      status: formData.status,
+      priority: formData.priority,
+      userStory,
+      acceptanceCriteria: criteria,
+      score,
+      dependencies: [],
+      tags,
+      assignee: formData.assignee.trim() || undefined,
+      estimatedDays: formData.estimatedDays ? parseInt(formData.estimatedDays) : undefined,
+    });
+  };
+
+  const tabs = [
+    { key: 'basic' as const, label: '基本信息' },
+    { key: 'story' as const, label: '用户故事' },
+    { key: 'criteria' as const, label: '验收标准' },
+    { key: 'score' as const, label: '优先级评分' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">新建需求</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex border-b border-gray-200 px-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'basic' && (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  需求标题 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleChange('title', e.target.value)}
+                  placeholder="简明扼要地描述需求"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">需求描述</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="详细描述需求的背景和问题..."
+                  rows={4}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">来源</label>
+                  <select
+                    value={formData.source}
+                    onChange={(e) => handleChange('source', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  >
+                    {Object.entries({
+                      user_feedback: '用户反馈',
+                      customer_support: '客服反馈',
+                      sales: '销售反馈',
+                      product_strategy: '产品战略',
+                      technical_debt: '技术债务',
+                      competitor: '竞品分析',
+                      internal: '内部需求',
+                    }).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">优先级</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => handleChange('priority', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  >
+                    {Object.entries(PRIORITY_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">负责人</label>
+                  <input
+                    type="text"
+                    value={formData.assignee}
+                    onChange={(e) => handleChange('assignee', e.target.value)}
+                    placeholder="输入负责人姓名"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">预估工期（天）</label>
+                  <input
+                    type="number"
+                    value={formData.estimatedDays}
+                    onChange={(e) => handleChange('estimatedDays', e.target.value)}
+                    placeholder="例如：5"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">标签（逗号分隔）</label>
+                <input
+                  type="text"
+                  value={formData.tags}
+                  onChange={(e) => handleChange('tags', e.target.value)}
+                  placeholder="例如：登录, 用户体验, 安全"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'story' && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-blue-50 p-4">
+                <p className="mb-2 text-sm font-medium text-blue-800">用户故事格式</p>
+                <p className="text-xs text-blue-600">
+                  作为一个「用户角色」，我想要「功能/目标」，以便于「业务价值」
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  作为一个 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.asA}
+                  onChange={(e) => handleChange('asA', e.target.value)}
+                  placeholder="例如：普通用户"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  我想要 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.iWant}
+                  onChange={(e) => handleChange('iWant', e.target.value)}
+                  placeholder="例如：使用手机号和验证码登录系统"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  以便于 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.soThat}
+                  onChange={(e) => handleChange('soThat', e.target.value)}
+                  placeholder="例如：我不需要记住密码，能够快速登录使用产品"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              {formData.asA && formData.iWant && formData.soThat && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                  <p className="text-sm font-medium text-green-800">预览</p>
+                  <p className="mt-1 text-sm text-green-700">
+                    作为一个 <span className="font-semibold">{formData.asA}</span>，我想要{' '}
+                    <span className="font-semibold">{formData.iWant}</span>，以便于{' '}
+                    <span className="font-semibold">{formData.soThat}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'criteria' && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-amber-50 p-4">
+                <p className="mb-1 text-sm font-medium text-amber-800">验收标准编写规范</p>
+                <p className="text-xs text-amber-600">
+                  验收标准必须具备可测试性，避免使用「快速」「友好」「美观」等模糊词汇。应该描述明确的输入输出和预期结果。
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {acceptanceCriteria.map((ac, index) => (
+                  <div key={index} className="flex gap-2">
+                    <div className="flex items-start pt-2 text-sm font-medium text-gray-400">
+                      AC-{index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={ac.description}
+                        onChange={(e) => updateCriterion(index, e.target.value)}
+                        placeholder="例如：点击「获取验证码」后，按钮显示60秒倒计时"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeCriterion(index)}
+                      className="mt-2 text-gray-400 hover:text-red-500"
+                      disabled={acceptanceCriteria.length === 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addCriterion}
+                className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+                添加验收标准
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'score' && (
+            <div className="space-y-6">
+              <div className="rounded-lg bg-indigo-50 p-4">
+                <p className="mb-1 text-sm font-medium text-indigo-800">优先级评分说明</p>
+                <p className="text-xs text-indigo-600">
+                  每项 1-10 分，分数越高表示该维度越显著（成本除外，成本越高分数越高）
+                </p>
+              </div>
+
+              {[
+                { key: 'userValue' as const, label: '用户价值', desc: '需求对用户的价值大小' },
+                { key: 'implementationCost' as const, label: '实现成本', desc: '开发所需的时间和资源' },
+                { key: 'strategicAlignment' as const, label: '战略对齐', desc: '与产品战略目标的契合度' },
+                { key: 'urgency' as const, label: '紧急程度', desc: '需求的时间敏感性' },
+              ].map((item) => (
+                <div key={item.key}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">{item.label}</label>
+                      <p className="text-xs text-gray-500">{item.desc}</p>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">{formData[item.key]}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={formData[item.key]}
+                    onChange={(e) => handleChange(item.key, parseInt(e.target.value))}
+                    className="w-full accent-blue-600"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex text-xs text-gray-500">
+            <span className={cn('w-2 h-2 rounded-full mr-1.5 mt-0.5', activeTab === 'basic' ? 'bg-blue-600' : 'bg-gray-300')} />
+            <span className={cn('w-2 h-2 rounded-full mr-1.5 mt-0.5', activeTab === 'story' ? 'bg-blue-600' : 'bg-gray-300')} />
+            <span className={cn('w-2 h-2 rounded-full mr-1.5 mt-0.5', activeTab === 'criteria' ? 'bg-blue-600' : 'bg-gray-300')} />
+            <span className={cn('w-2 h-2 rounded-full mt-0.5', activeTab === 'score' ? 'bg-blue-600' : 'bg-gray-300')} />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            >
+              创建需求
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
