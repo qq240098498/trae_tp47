@@ -8,8 +8,11 @@ import type {
   Dependency,
   PriorityLevel,
   DuplicateCheckResult,
+  UserVoiceDemand,
+  UserVoiceStatistics,
+  FeedbackChannel,
 } from '@/types';
-import { mockRequirements, mockDependencies } from '@/data/mockData';
+import { mockRequirements, mockDependencies, mockUserVoiceDemands, mockUserVoiceStatistics } from '@/data/mockData';
 import { calculateRequirementSimilarity, assessImpact, type ImpactAssessmentResult } from '@/lib/utils';
 
 interface RequirementStore {
@@ -63,6 +66,19 @@ interface RequirementStore {
 
   getImpactAssessment: (requirementId: string) => ImpactAssessmentResult | null;
   getImpactAssessmentFromText: (title: string, description: string) => ImpactAssessmentResult;
+
+  userVoiceDemands: UserVoiceDemand[];
+  userVoiceStatistics: UserVoiceStatistics;
+  userVoiceSearchQuery: string;
+  userVoiceFilterChannels: FeedbackChannel[];
+  userVoiceSortBy: 'heat' | 'mentions' | 'negative' | 'trend';
+
+  setUserVoiceSearchQuery: (query: string) => void;
+  toggleUserVoiceChannelFilter: (channel: FeedbackChannel) => void;
+  setUserVoiceSortBy: (sortBy: 'heat' | 'mentions' | 'negative' | 'trend') => void;
+  getUserVoiceDemands: () => UserVoiceDemand[];
+  getUserVoiceDemandById: (id: string) => UserVoiceDemand | undefined;
+  getUserVoiceStatistics: () => UserVoiceStatistics;
 }
 
 const generateId = () => {
@@ -81,6 +97,12 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   filterPriority: 'all',
   searchQuery: '',
   duplicateCheckThreshold: 0.6,
+
+  userVoiceDemands: mockUserVoiceDemands,
+  userVoiceStatistics: mockUserVoiceStatistics,
+  userVoiceSearchQuery: '',
+  userVoiceFilterChannels: [],
+  userVoiceSortBy: 'heat',
 
   setSelectedRequirementId: (id) => set({ selectedRequirementId: id }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -424,4 +446,52 @@ export const useRequirementStore = create<RequirementStore>((set, get) => ({
   getImpactAssessmentFromText: (title, description) => {
     return assessImpact(title, description);
   },
+
+  setUserVoiceSearchQuery: (query) => set({ userVoiceSearchQuery: query }),
+  toggleUserVoiceChannelFilter: (channel) =>
+    set((state) => ({
+      userVoiceFilterChannels: state.userVoiceFilterChannels.includes(channel)
+        ? state.userVoiceFilterChannels.filter((c) => c !== channel)
+        : [...state.userVoiceFilterChannels, channel],
+    })),
+  setUserVoiceSortBy: (sortBy) => set({ userVoiceSortBy: sortBy }),
+  getUserVoiceDemands: () => {
+    const { userVoiceDemands, userVoiceSearchQuery, userVoiceFilterChannels, userVoiceSortBy } = get();
+    let result = [...userVoiceDemands];
+
+    if (userVoiceSearchQuery) {
+      const q = userVoiceSearchQuery.toLowerCase();
+      result = result.filter(
+        (d) =>
+          d.featureName.toLowerCase().includes(q) ||
+          d.description.toLowerCase().includes(q) ||
+          d.keywords.some((k) => k.toLowerCase().includes(q))
+      );
+    }
+
+    if (userVoiceFilterChannels.length > 0) {
+      result = result.filter((d) =>
+        userVoiceFilterChannels.some((c) => d.channelBreakdown[c] > 0)
+      );
+    }
+
+    switch (userVoiceSortBy) {
+      case 'heat':
+        result.sort((a, b) => b.heatScore - a.heatScore);
+        break;
+      case 'mentions':
+        result.sort((a, b) => b.totalMentions - a.totalMentions);
+        break;
+      case 'negative':
+        result.sort((a, b) => b.sentimentBreakdown.negative - a.sentimentBreakdown.negative);
+        break;
+      case 'trend':
+        result.sort((a, b) => b.trendChange - a.trendChange);
+        break;
+    }
+
+    return result;
+  },
+  getUserVoiceDemandById: (id) => get().userVoiceDemands.find((d) => d.id === id),
+  getUserVoiceStatistics: () => get().userVoiceStatistics,
 }));

@@ -238,3 +238,75 @@ export const TEST_TYPE_LABELS: Record<RegressionScope['testType'], string> = {
   e2e: '端到端测试',
   manual: '手动测试',
 };
+
+export type FeedbackChannel = 'customer_service' | 'app_store' | 'social_media' | 'user_interview';
+
+export const FEEDBACK_CHANNEL_LABELS: Record<FeedbackChannel, string> = {
+  customer_service: '客服工单',
+  app_store: '应用商店评论',
+  social_media: '社媒反馈',
+  user_interview: '用户访谈记录',
+};
+
+export const FEEDBACK_CHANNEL_COLORS: Record<FeedbackChannel, string> = {
+  customer_service: 'text-blue-600 bg-blue-50 border-blue-200',
+  app_store: 'text-purple-600 bg-purple-50 border-purple-200',
+  social_media: 'text-pink-600 bg-pink-50 border-pink-200',
+  user_interview: 'text-teal-600 bg-teal-50 border-teal-200',
+};
+
+export type SentimentType = 'positive' | 'neutral' | 'negative';
+
+export const SENTIMENT_LABELS: Record<SentimentType, string> = {
+  positive: '正面',
+  neutral: '中性',
+  negative: '负面',
+};
+
+export const SENTIMENT_COLORS: Record<SentimentType, string> = {
+  positive: 'text-green-600 bg-green-50',
+  neutral: 'text-gray-600 bg-gray-50',
+  negative: 'text-red-600 bg-red-50',
+};
+
+export interface UserFeedbackItem {
+  id: string;
+  channel: FeedbackChannel;
+  content: string;
+  sentiment: SentimentType;
+  sentimentScore: number;
+  keywords: string[];
+  timestamp: string;
+  userId?: string;
+}
+
+export interface UserVoiceDemand {
+  id: string;
+  featureName: string;
+  description: string;
+  totalMentions: number;
+  uniqueUsers: number;
+  sentimentBreakdown: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  channelBreakdown: Record<FeedbackChannel, number>;
+  keywords: string[];
+  trend: 'up' | 'stable' | 'down';
+  trendChange: number;
+  heatScore: number;
+  relatedRequirementId?: string;
+  sampleFeedbacks: string[];
+}
+
+export interface UserVoiceStatistics {
+  totalFeedbacks: number;
+  totalDemands: number;
+  avgSentimentScore: number;
+  channelsDistribution: Record<FeedbackChannel, number>;
+  topDemands: UserVoiceDemand[];
+  trendingDemands: UserVoiceDemand[];
+  negativeHotspots: UserVoiceDemand[];
+}
+

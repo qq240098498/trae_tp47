@@ -7,6 +7,7 @@ import Prioritization from "@/pages/Prioritization";
 import Dependencies from "@/pages/Dependencies";
 import Tracking from "@/pages/Tracking";
 import ImpactAssessment from "@/pages/ImpactAssessment";
+import UserVoice from "@/pages/UserVoice";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="requirements" element={<Requirements />} />
           <Route path="requirements/:id" element={<RequirementDetail />} />
           <Route path="prioritization" element={<Prioritization />} />
+          <Route path="user-voice" element={<UserVoice />} />
           <Route path="dependencies" element={<Dependencies />} />
           <Route path="impact-assessment" element={<ImpactAssessment />} />
           <Route path="tracking" element={<Tracking />} />

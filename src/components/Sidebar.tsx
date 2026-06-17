@@ -7,6 +7,7 @@ import {
   Kanban,
   Settings,
   Activity,
+  MessageSquareHeart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +15,7 @@ const navItems = [
   { path: '/', label: '工作台', icon: LayoutDashboard },
   { path: '/requirements', label: '需求列表', icon: FileText },
   { path: '/prioritization', label: '优先级排序', icon: BarChart3 },
+  { path: '/user-voice', label: '用户之声', icon: MessageSquareHeart },
   { path: '/dependencies', label: '依赖与冲突', icon: GitBranch },
   { path: '/impact-assessment', label: '影响面评估', icon: Activity },
   { path: '/tracking', label: '进度跟踪', icon: Kanban },
